@@ -116,7 +116,18 @@ export const useBearStore = create<BearState>()((set, get)  => ({
 }));
 ```
 
-Importante notar que en la creación de nuestro Store, estamos usando tanto el `set` como el `get`, en el ejemplo anterior sólo usamos el primero.
+Importante notar que en la creación de nuestro Store, estamos usando tanto el `set` como el `get`, en el ejemplo anterior sólo usamos el primero., también si estamos usando Middlewares como el persist tendremos que sólo usar la función dentro de nuestra función de la siguiente forma:
+
+```typescript
+interface BearState {
+    totalBears: () => number;
+}
+
+// En nuestro store dentro del persist
+totalBears: ()  => {
+    return get().blackBears + get().polarBears + get().pandaBears + get().bears.length;
+},
+```
 
 
 # Middlewares
@@ -129,7 +140,7 @@ Los Middlewares son funciones que se ejecutan antes de crearse nuestros stores, 
 Nos permite guardar los datos de nuestro Store de forma persistente en LocalStorage, y esto hace que incluso recargando la aplicación los datos se mantienen. Para hacer uso de esto se debe usar el Middleware `persist` y tendremos que colocar como parámetros todo lo que se guardará en nuestro Store y adicional el nombre que queramos colocar a nuestro Store para guardarlo en el LocalStorage, en este caso el nombre es *person-storage*.
 
 ```typescript
-import { create } from 'zustand';
+import { create, type  StateCreator } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 interface PersonState {
@@ -142,18 +153,119 @@ interface Actions {
     setLastName: (value: string) => void;
 }
 
+const storeApi: StateCreator<PersonState & Actions> = (set) => ({
+    firstName: '',
+    lastName: '',
+
+    setFirstName: (value: string) => set({ firstName: value }),
+    setLastName: (value: string) => set({ lastName: value }),
+});
+
 export const usePersonStore = create<PersonState & Actions>()(
     persist(
-        (set) => ({
-            firstName: '',
-            lastName: '',
-
-            setFirstName: (value: string) => set({ firstName: value }),
-            setLastName: (value: string) => set({ lastName: value }),
-        }),
+        storeApi,
         {
-            name: 'person-storage'
+            name: 'person-storage',
         }
+    )
+);
+```
+
+Si queremos usar un Storage distinto al LocalStorage (por ejemplo SessionStorage) podemos hacer lo siguiente:
+
+```typescript
+// session.storage.ts
+import { createJSONStorage, StateStorage } from "zustand/middleware";
+
+export const storageApi: StateStorage = {
+    getItem: function (name: string): string | null | Promise<string | null> {
+        const data = sessionStorage.getItem(name);
+
+        return data;
+    },
+    setItem: function (name: string, value: string): void {
+        sessionStorage.setItem(name, value);
+    },
+    removeItem: function (name: string): unknown | Promise<unknown> {
+        throw new Error('Function not implemented.');
+    }
+};
+
+export const customSessionStorage = createJSONStorage(() => storageApi);
+
+// Nuestro Store
+import { create, type StateCreator } from 'zustand';
+import { createJSONStorage, persist, StateStorage } from 'zustand/middleware';
+
+import { customSessionStorage } from '../storages/session.storage';
+
+interface PersonState {
+    firstName: string;
+    lastName: string;
+}
+
+interface Actions {
+    setFirstName: (value: string) => void;
+    setLastName: (value: string) => void;
+}
+
+const storeApi: StateCreator<PersonState & Actions> = (set) => ({
+    firstName: '',
+    lastName: '',
+
+    setFirstName: (value: string) => set({ firstName: value }),
+    setLastName: (value: string) => set({ lastName: value }),
+});
+
+export const usePersonStore = create<PersonState & Actions>()(
+    persist(
+        storeApi,
+        {
+            name: 'person-storage',
+            storage: customSessionStorage,
+        }
+    )
+);
+```
+
+
+## Devtools
+
+Si queremos que nuestro Store aparezca en las herramientas de Redux, el middleware Devtools es una excelente opción:
+
+```typescript
+import { create, type  StateCreator } from  'zustand';
+import { devtools, persist } from 'zustand/middleware';
+
+import { customSessionStorage } from '../storages/session.storage';
+
+interface PersonState {
+    firstName: string;
+    lastName: string;
+}
+
+interface Actions {
+    setFirstName: (value: string) => void;
+    setLastName: (value: string) => void;
+}
+
+const storeApi: StateCreator<PersonState & Actions, [['zustand/devtools', never], ['zustand/persist', unknown]]> = (set) => ({
+    firstName: '',
+    lastName: '',
+
+    setFirstName: (value: string) => set((state) => ({ firstName: value }), false, 'setFirstName'),
+    setLastName: (value: string) => set((state) => ({ lastName: value }), false, 'setLastName'),
+});
+
+export const usePersonStore = create<PersonState & Actions>()(
+    devtools(
+        persist(
+            storeApi,
+            {
+                name: 'person-storage',
+                storage: customSessionStorage,
+            }
+        )
     )
 );
 ```
