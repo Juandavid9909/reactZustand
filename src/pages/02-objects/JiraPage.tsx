@@ -19,19 +19,19 @@ export const JiraPage = () => {
           <JiraTasks
               tasks={ pendingTasks }
               title='Pendientes'
-              value='open'
+              status='open'
             />
           
           <JiraTasks
             tasks={ inProgressTasks }
             title='Avanzando'
-            value='in-progress'
+            status='in-progress'
           />
           
           <JiraTasks
             tasks={ doneTasks }
             title='Terminadas'
-            value='done'
+            status='done'
           />
       </div>
     </>

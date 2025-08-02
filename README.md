@@ -269,3 +269,86 @@ export const usePersonStore = create<PersonState & Actions>()(
     )
 );
 ```
+
+
+## immer - Produce
+
+Este viene en un paquete externo y nos permite ir manipulando el state sin necesidad de ir haciendo el operador spread:
+
+```bash
+npm i immer
+```
+
+Y luego para agregar nuestro nuevo elemento sin eliminar los anteriores:
+
+```typescript
+import { produce } from  'immer';
+
+set(produce((state: TaskState) => {
+    state.tasks[newTask.id] = newTask;
+}));
+```
+
+
+## immer - Middleware
+
+Para evitar instalar paquetes extra, podemos hacer uso del middleware que nos da Zustand para no tener que instalar immer.
+
+```typescript
+import { devtools } from 'zustand/middleware';
+import { immer } from 'zustand/middleware/immer';
+
+export const useTaskStore = create<TaskState>()(
+    devtools(
+        immer(storeApi),
+    )
+);
+
+// Nuestro set del store
+set((state) => {
+    state.tasks[newTask.id] = newTask;
+});
+
+// Y no podemos olvidar que en la creación de nuestro store necesitamos agregar nuestro type ['zustand/immer', never]
+```
+
+
+# Slices
+
+Nos permiten dividir nuestros stores en pequeñas partes (slices) para hacerlo más fácil de mantener, y luego de puede juntar todo en nuestro store para aplicar los middlewares que necesitemos.
+
+
+```typescript
+// Nuestro slice
+import { StateCreator } from 'zustand';
+
+export interface PersonSlice {
+    firstName: string;
+    lastName: string;
+    setFirstName: (firstName: string) => void;
+    setLastName: (lastName: string) => void;
+}
+
+export const createPersonSlice: StateCreator<PersonSlice> = (set) => ({
+    firstName: '',
+    lastName: '',
+    setFirstName: (firstName: string) =>  set({ firstName }),
+    setLastName: (lastName: string) =>  set({ lastName }),
+});
+
+// Nuestro Bound Store
+import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
+
+import { createPersonSlice, PersonSlice } from './person.slice';
+
+type ShareState = PersonSlice;
+
+export const useWeddingBoundStore  =  create<ShareState>()(
+    devtools(
+        (...a) => ({
+            ...createPersonSlice(...a),
+        })
+    )
+);
+```
