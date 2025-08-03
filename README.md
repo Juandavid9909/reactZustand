@@ -352,3 +352,134 @@ export const useWeddingBoundStore  =  create<ShareState>()(
     )
 );
 ```
+
+
+# Autenticación
+
+Con Zustand podemos hacer uso de nuestros llamados HTTP para configurar nuestros tokens y demás, a continuación un ejemplo:
+
+```typescript
+// Nuestro store
+import { create, StateCreator } from 'zustand';
+import { devtools, persist } from 'zustand/middleware';
+
+import  type { AuthStatus, User } from '../../interfaces';
+import { AuthService } from '../../services/auth.service';
+
+export  interface AuthState {
+    status: AuthStatus;
+    token?: string;
+    user?: User;
+    loginUser:  (email: string, password: string)  => Promise<void>;
+}
+
+const storeApi: StateCreator<AuthState> = (set) => ({
+    status: 'unauthorized',
+    token: undefined,
+    user: undefined,
+    loginUser: async (email: string, password: string) => {
+        try {
+            const { token, ...user } = await AuthService.login(email, password)
+            set({ status: 'authorized', token, user });
+        } catch (error) {
+            set({ status: 'unauthorized', token: undefined, user: undefined });
+        }
+    },
+});
+  
+export const useAuthStore = create<AuthState>()(
+    devtools(
+        persist(
+            storeApi,
+            {
+                name: 'auth-storage'
+            },
+        )
+    )
+);
+
+// Nuestro servicio
+import { AxiosError } from 'axios';
+
+import { tesloApi } from '../api/teslo.api';
+
+export  interface LoginResponse {
+    id: string;
+    email: string;
+    fullName: string;
+    isActive: boolean;
+    roles: string[];
+    token: string;
+}
+
+export class AuthService {
+    public static login = async (email: string, password: string): Promise<LoginResponse> => {
+        try {
+            const { data } = await tesloApi.post<LoginResponse>('/auth/login', { email, password });
+
+            return data;
+        } catch (error) {
+            if(error instanceof AxiosError) {
+                console.log(error.response?.data);
+
+                throw new Error(error.response?.data);
+            }
+
+            console.log(error);
+
+            throw new Error('Unable to login');
+        }
+    }
+
+    public static checkStatus = async (): Promise<LoginResponse> => {
+        try {
+            const { data } = await tesloApi.get<LoginResponse>('/auth/check-status');
+
+            return  data;
+        } catch (error) {
+            console.log(error);
+
+            throw new Error('Unauthorized');
+        }
+    }
+}
+
+// Nuestro hook de Axios
+import axios from 'axios';
+
+import { useAuthStore } from '../stores';
+
+const tesloApi = axios.create({
+    baseURL: import.meta.env.HOST_API,
+});
+
+tesloApi.interceptors.request.use(
+    (config) => {
+        const token = useAuthStore.getState().token;
+
+        if(token) {
+            config.headers['Authorization'] = `Bearer ${ token }`;
+        }
+
+        return config;
+    }
+);
+
+export {
+    tesloApi,
+};
+```
+
+
+# Suscripciones y cambios de estado
+
+Si queremos actualizar un store desde otro al detectar un cambio, podemos hacer uso de las suscripciones:
+
+```typescript
+usePersonStore.subscribe((nextState, /* prevState */) => {
+    const { firstName, lastName } = nextState;
+
+    useWeddingBoundStore.getState().setFirstName(firstName);
+    useWeddingBoundStore.getState().setLastName(lastName);
+});
+```
